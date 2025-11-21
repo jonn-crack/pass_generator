@@ -13,17 +13,7 @@
             font-family: 'Inter', sans-serif;
             background-color: #1f2937; /* Dark Slate 800 */
         }
-        /* Clase para el icono de copiar más visible */
-        #copy-button {
-            background-color: #2563eb; /* Blue 600 */
-            color: #ffffff;
-            border-radius: 0 0.5rem 0.5rem 0; /* Arriba a la derecha, abajo a la derecha */
-            transition: background-color 0.2s;
-        }
-        #copy-button:hover {
-            background-color: #1d4ed8; /* Blue 700 */
-        }
-
+        
         /* Estilo para el Canvas de fondo */
         #bg-canvas {
             display: block;
@@ -57,21 +47,19 @@
                     id="password-output"
                     value="Haz clic en Generar"
                     readonly
-                    class="flex-grow p-4 text-lg text-gray-900 bg-gray-200 border border-gray-600 rounded-l-lg focus:ring-blue-500 focus:border-blue-500 font-mono select-all"
+                    class="flex-grow p-4 text-lg text-gray-900 bg-gray-200 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 font-mono select-all"
                 >
-                <button id="copy-button" class="flex-shrink-0 w-12 flex items-center justify-center" aria-label="Copiar Contraseña">
-                    <!-- Icono de Copiar (Lucide Icon: Clipboard) - Aumentada visibilidad por CSS -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard"><rect width="8" height="4" x="8" y="2"/><path d="M15 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h2"/><path d="M15 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h2"/></svg>
-                </button>
             </div>
         </div>
 
-        <!-- Botón de Generación -->
+        <!-- Botón de Generación y Copia Unificado -->
         <button
             id="generate-button"
-            class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-blue-500 transition duration-200 shadow-lg shadow-blue-500/50"
+            class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-blue-500 transition duration-200 shadow-lg shadow-blue-500/50 flex items-center justify-center space-x-2"
         >
-            Generar Contraseña Aleatoria
+             <!-- Icono de Copiar (Lucide Icon: Clipboard) -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-plus"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 13h6"/><path d="M12 10v6"/></svg>
+            <span>Generar y Copiar Contraseña</span>
         </button>
 
         <!-- Mensaje de Feedback -->
@@ -102,7 +90,6 @@
 
         const outputField = document.getElementById('password-output');
         const generateButton = document.getElementById('generate-button');
-        const copyButton = document.getElementById('copy-button');
         const feedbackMessage = document.getElementById('feedback-message');
         const combinationCountElement = document.getElementById('combination-count');
         
@@ -223,6 +210,8 @@
          */
         function copyToClipboard() {
             try {
+                // Asegura que el campo está enfocado y seleccionado para copiar
+                outputField.focus();
                 outputField.select();
                 outputField.setSelectionRange(0, 99999); // Para dispositivos móviles
                 document.execCommand('copy');
@@ -305,26 +294,19 @@
 
         // --- Event Listeners ---
 
-        // 1. Generar y mostrar la contraseña
+        // 1. Generar y Copiar la contraseña (Función Unificada)
         generateButton.addEventListener('click', () => {
             const newPassword = generatePassword();
             if (newPassword) {
                 outputField.value = newPassword;
-                outputField.focus();
-                outputField.select(); // Selecciona el texto automáticamente
+                copyToClipboard(); // Llama a la función de copia
             }
         });
-
-        // 2. Copiar la contraseña
-        copyButton.addEventListener('click', (e) => {
-            e.preventDefault(); // Evita cualquier acción de formulario no deseada
-            copyToClipboard();
-        });
         
-        // 3. También permite copiar haciendo clic en el campo de texto
-        outputField.addEventListener('click', copyToClipboard);
+        // 2. Desactivamos la copia al hacer clic en el campo, ya que el botón principal lo hace.
+        // outputField.addEventListener('click', copyToClipboard);
 
-        // 4. Inicialización y Eventos del Canvas/Fondo
+        // 3. Inicialización y Eventos del Canvas/Fondo
         window.addEventListener('resize', () => {
             resizeCanvas();
             initParticles();
@@ -335,7 +317,7 @@
             mouse.y = e.y;
         });
         
-        // 5. Generar una contraseña inicial al cargar
+        // 4. Generar una contraseña inicial al cargar
         document.addEventListener('DOMContentLoaded', () => {
             calculateCombinations();
             const initialPassword = generatePassword();
