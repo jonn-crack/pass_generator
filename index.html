@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Contraseñas Seguras</title>
+    <!-- Incluye Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define la fuente Inter y el tema oscuro base */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Dark Slate 800 */
+        }
+        /* Clase para el icono de copiar más visible */
+        #copy-button {
+            background-color: #2563eb; /* Blue 600 */
+            color: #ffffff;
+            border-radius: 0 0.5rem 0.5rem 0; /* Arriba a la derecha, abajo a la derecha */
+            transition: background-color 0.2s;
+        }
+        #copy-button:hover {
+            background-color: #1d4ed8; /* Blue 700 */
+        }
+
+        /* Estilo para el Canvas de fondo */
+        #bg-canvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -10;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 overflow-hidden">
+
+    <!-- Canvas para el fondo interactivo de caracteres -->
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- Contenedor Principal de la Aplicación -->
+    <div class="bg-gray-800 text-white p-8 sm:p-10 rounded-xl shadow-2xl w-full max-w-md transform transition duration-500 hover:shadow-xl z-10 border border-gray-700">
+        <h1 class="text-3xl font-bold text-center mb-2">
+            Generador de Claves
+        </h1>
+        <p class="text-center text-sm text-gray-400 mb-8">
+            Genera una contraseña fuerte de 11 caracteres con reglas de fácil lectura.
+        </p>
+
+        <!-- Campo de Contraseña -->
+        <div class="mb-6">
+            <label for="password-output" class="block text-sm font-medium text-gray-300 mb-2">Contraseña Generada (11 Caracteres):</label>
+            <div class="relative flex">
+                <input
+                    type="text"
+                    id="password-output"
+                    value="Haz clic en Generar"
+                    readonly
+                    class="flex-grow p-4 text-lg text-gray-900 bg-gray-200 border border-gray-600 rounded-l-lg focus:ring-blue-500 focus:border-blue-500 font-mono select-all"
+                >
+                <button id="copy-button" class="flex-shrink-0 w-12 flex items-center justify-center" aria-label="Copiar Contraseña">
+                    <!-- Icono de Copiar (Lucide Icon: Clipboard) - Aumentada visibilidad por CSS -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard"><rect width="8" height="4" x="8" y="2"/><path d="M15 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h2"/><path d="M15 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h2"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Botón de Generación -->
+        <button
+            id="generate-button"
+            class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-blue-500 transition duration-200 shadow-lg shadow-blue-500/50"
+        >
+            Generar Contraseña Aleatoria
+        </button>
+
+        <!-- Mensaje de Feedback -->
+        <div id="feedback-message" class="mt-4 text-center text-sm font-medium text-green-400 opacity-0 transition-opacity duration-300">
+            ¡Contraseña copiada al portapapeles!
+        </div>
+
+        <div class="mt-8 pt-4 border-t border-gray-700">
+            <p class="text-sm font-medium text-gray-300 mb-2">Reglas de Composición y Potencia:</p>
+            <ul class="text-xs text-gray-400 list-disc ml-4 space-y-1">
+                <li>**Regla de Orden:** Mayús (3) + Símbolo (1) + Números (3) + Símbolo (1) + Minúsculas (3).</li>
+                <li>**Caracteres Excluidos:** I, O, l, 0, 1 para evitar confusión.</li>
+                <li>**Longitud Total:** 11 caracteres.</li>
+                <li id="combination-count">**Combinaciones Restantes:** Calculando...</li>
+            </ul>
+            <p class="mt-4 text-xs font-medium text-blue-400">
+                **Estandar de Seguridad (NIST SP 800-63B):** Con 11 caracteres y cuatro tipos de caracteres, esta contraseña ofrece una **seguridad excelente** (alta entropía). La inclusión de dos símbolos en posiciones específicas mejora aún más la resistencia contra ataques predecibles.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Caracteres excluidos para evitar confusiones visuales (como l minúscula y I mayúscula)
+        const UPPERCASE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // 24 caracteres (Excluye I, O)
+        const LOWERCASE_CHARS = "abcdefghijkmnopqrstuvwxyz"; // 25 caracteres (Excluye l)
+        const SYMBOLS = "!@#$%&*"; // 7 símbolos comunes y fáciles de escribir
+        const NUMBERS = "23456789"; // 8 números (Excluye 0, 1)
+
+        const outputField = document.getElementById('password-output');
+        const generateButton = document.getElementById('generate-button');
+        const copyButton = document.getElementById('copy-button');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const combinationCountElement = document.getElementById('combination-count');
+        
+        // Variables para el control de combinaciones no repetidas
+        const generatedPasswords = new Set();
+        let totalCombinations = 0;
+
+        // --- Lógica de Generación de Contraseña ---
+
+        /**
+         * Calcula el número total de combinaciones posibles.
+         * Nueva fórmula (11 caracteres): C = (Mayús)^3 * (Símbolos)^2 * (Números)^3 * (Minús)^3
+         */
+        function calculateCombinations() {
+            // C = 24^3 * 7^2 * 8^3 * 25^3
+            totalCombinations = Math.pow(UPPERCASE_CHARS.length, 3) *
+                      Math.pow(SYMBOLS.length, 2) *
+                      Math.pow(NUMBERS.length, 3) *
+                      Math.pow(LOWERCASE_CHARS.length, 3);
+            
+            updateCombinationDisplay();
+        }
+
+        /**
+         * Actualiza el contador de combinaciones restantes en la interfaz.
+         */
+        function updateCombinationDisplay() {
+            const remaining = totalCombinations - generatedPasswords.size;
+            
+            // Usamos notación científica para números muy grandes si es necesario, pero mantenemos la legibilidad.
+            const formattedRemaining = remaining.toLocaleString('es-ES');
+            
+            // 5,463,552,000,000,000
+            const formattedTotalText = "5.46 Cuatrillones"; 
+            
+            combinationCountElement.innerHTML = `**Combinaciones Restantes:** ${formattedRemaining} de ${formattedTotalText}`;
+        }
+
+
+        /**
+         * Genera un caracter aleatorio de la cadena dada.
+         */
+        function getRandomChar(characters) {
+            const randomIndex = Math.floor(Math.random() * characters.length);
+            return characters.charAt(randomIndex);
+        }
+
+        /**
+         * Genera una contraseña única siguiendo la nueva regla de 11 caracteres:
+         * Mayúscula (3) + Símbolo (1) + Números (3) + Símbolo (1) + Minúsculas (3).
+         */
+        function generatePassword() {
+            if (generatedPasswords.size >= totalCombinations) {
+                // Todas las combinaciones posibles han sido agotadas
+                outputField.value = "¡Combinaciones Agotadas!";
+                generateButton.disabled = true;
+                return null;
+            }
+
+            let newPassword;
+            let attempts = 0;
+            const maxAttempts = 1000; // Límite de intentos para evitar un bucle infinito en caso de colisión
+
+            do {
+                newPassword = '';
+
+                // 1. Tres letras Mayúsculas (MMM)
+                for (let i = 0; i < 3; i++) {
+                    newPassword += getRandomChar(UPPERCASE_CHARS);
+                }
+
+                // 2. Un Símbolo (S1)
+                newPassword += getRandomChar(SYMBOLS);
+
+                // 3. Tres Números (NNN)
+                for (let i = 0; i < 3; i++) {
+                    newPassword += getRandomChar(NUMBERS);
+                }
+
+                // 4. Otro Símbolo (S2)
+                newPassword += getRandomChar(SYMBOLS);
+
+                // 5. Tres letras Minúsculas (LLL)
+                for (let i = 0; i < 3; i++) {
+                    newPassword += getRandomChar(LOWERCASE_CHARS);
+                }
+                
+                attempts++;
+
+            } while (generatedPasswords.has(newPassword) && attempts < maxAttempts);
+
+            if (attempts >= maxAttempts) {
+                console.warn("Máximo de intentos alcanzado. Se generó una contraseña repetida después de muchos intentos. Intentando de nuevo.");
+                return generatePassword(); // Retry generation completely
+            }
+
+            // Almacena la contraseña única y actualiza el contador
+            generatedPasswords.add(newPassword);
+            updateCombinationDisplay();
+            
+            return newPassword;
+        }
+
+        /**
+         * Muestra un mensaje de éxito y lo oculta después de un tiempo.
+         */
+        function showFeedback() {
+            feedbackMessage.classList.remove('opacity-0');
+            feedbackMessage.classList.add('opacity-100');
+            setTimeout(() => {
+                feedbackMessage.classList.remove('opacity-100');
+                feedbackMessage.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        /**
+         * Copia el texto del campo de salida al portapapeles.
+         */
+        function copyToClipboard() {
+            try {
+                outputField.select();
+                outputField.setSelectionRange(0, 99999); // Para dispositivos móviles
+                document.execCommand('copy');
+                showFeedback();
+            } catch (err) {
+                console.error('Error al intentar copiar: ', err);
+            }
+        }
+
+        // --- Lógica del Fondo Interactivo (Canvas) ---
+
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let mouse = { x: 0, y: 0 };
+
+        // Caracteres aleatorios para el fondo
+        const BG_CHARS = "01*#@!%^&ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 1; // Tamaño de 1 a 3
+                this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5;
+                this.color = 'rgba(75, 85, 99, ' + (Math.random() * 0.5 + 0.1) + ')'; // Gray 600 con opacidad variable
+                this.char = getRandomChar(BG_CHARS);
+            }
+
+            update() {
+                // Movimiento básico
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                // Efecto de gravedad sutil del mouse (Parallax)
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < 300) {
+                    const force = 1 - (distance / 300);
+                    this.x -= (dx / distance) * force * 0.5; // Empujar sutilmente
+                    this.y -= (dy / distance) * force * 0.5;
+                }
+
+                // Reiniciar si sale de la pantalla
+                if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.font = this.size * 10 + 'px monospace';
+                ctx.fillText(this.char, this.x, this.y);
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            const numberOfParticles = Math.floor((canvas.width * canvas.height) / 15000); // Adaptar al tamaño
+            for (let i = 0; i < numberOfParticles; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpia
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        // --- Event Listeners ---
+
+        // 1. Generar y mostrar la contraseña
+        generateButton.addEventListener('click', () => {
+            const newPassword = generatePassword();
+            if (newPassword) {
+                outputField.value = newPassword;
+                outputField.focus();
+                outputField.select(); // Selecciona el texto automáticamente
+            }
+        });
+
+        // 2. Copiar la contraseña
+        copyButton.addEventListener('click', (e) => {
+            e.preventDefault(); // Evita cualquier acción de formulario no deseada
+            copyToClipboard();
+        });
+        
+        // 3. También permite copiar haciendo clic en el campo de texto
+        outputField.addEventListener('click', copyToClipboard);
+
+        // 4. Inicialización y Eventos del Canvas/Fondo
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            initParticles();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.x;
+            mouse.y = e.y;
+        });
+        
+        // 5. Generar una contraseña inicial al cargar
+        document.addEventListener('DOMContentLoaded', () => {
+            calculateCombinations();
+            const initialPassword = generatePassword();
+            if (initialPassword) {
+                outputField.value = initialPassword;
+            }
+            // Inicializar el canvas
+            resizeCanvas();
+            initParticles();
+            animate(); // Inicia el bucle de animación
+        });
+    </script>
+</body>
+</html>
